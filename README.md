@@ -1,4 +1,4 @@
-# SADM — Server Application Deploy Manager
+# SADM v4 — Server Application Deploy Manager
 
 A single-file Python deployment manager for self-hosted Linux servers. Handles full deploy pipelines for FastAPI, Django, Node.js API, Next.js, and React projects — including rsync, dependency install, builds, systemd service management, nginx config generation, backups, rollbacks, and secret rotation.
 
