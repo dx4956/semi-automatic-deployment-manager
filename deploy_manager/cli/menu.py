@@ -27,7 +27,7 @@ from deploy_manager.operations.git import (
 )
 from deploy_manager.operations.nginx import create_nginx_config, nginx_reload, remove_nginx_config
 from deploy_manager.operations.secrets import rotate_secret
-from deploy_manager.operations.service import create_service_file
+from deploy_manager.operations.service import create_service_file, link_service_file
 from deploy_manager.operations.users import create_deploy_user, ensure_system_user, list_deploy_users
 from deploy_manager.projects.helpers import get_dest_dir, get_src_dir, needs_build, needs_service
 
@@ -240,6 +240,7 @@ fastapi | django | node | next | react
  SERVICES & NGINX
  14) Create systemd service  15) View logs
  16) Create nginx config     17) Remove nginx config
+ 25) Link service from /srv
 
  BACKUP
  18) Create backup           19) Rollback
@@ -301,6 +302,8 @@ fastapi | django | node | next | react
                 p = choose_project()
                 if p and confirm(f"  Remove nginx config for {p['name']}?"):
                     remove_nginx_config(p)
+            elif c == "25":
+                p = choose_project(); p and link_service_file(p)
             elif c == "18":
                 p = choose_project(); p and create_backup(p)
             elif c == "19":

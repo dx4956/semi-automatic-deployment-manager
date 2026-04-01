@@ -44,6 +44,7 @@
 # BACKUP_RETENTION = 5
 
 # SYSTEMD_DIR = "/etc/systemd/system"
+# SERVICE_DIR  = "/srv/service"   # flat dir where generated .service files are stored before linking
 
 # DEFAULT_NODE_BIN = "/usr/bin/node"
 # DEFAULT_NPM_BIN = "/usr/bin/npm"
@@ -65,9 +66,12 @@
 # REACT_BUILD_OUTPUT_CANDIDATES = ["build", "dist"]
 
 # --- projects ---
-# type: fastapi | django | nodeapi | nextapp | react
+# type: fastapi | django | nodeapi | nextapp | react | compose
 # python: python_reqs, wsgi_module, django_settings, run_migrate, run_collectstatic
-# node: npm_script, build_cmd, build_output
+# node:   pkg_cmd (default "npm", set to "pnpm"/"bun"/any binary),
+#         app_dir (subdir to run pkg_cmd in, e.g. "frontend" for monorepos),
+#         npm_script, build_cmd, build_output
+# compose: compose_file, app_dir (subdir containing docker-compose.yml)
 # PROJECTS = [
 #     {
 #         "name": "backend",
@@ -78,6 +82,8 @@
 #         "port": 4001,
 #         "domain": "backend-api.com",
 #         "extra_excludes": ["/dir"],
+#         "pkg_cmd": "npm",       # or "pnpm", "bun", "/home/ubuntu/.bun/bin/bun", etc.
+#         "app_dir": "",          # subdir to run pkg_cmd in (leave empty for project root)
 #         "rotate_keys": ["JWT_SECRET", "API_KEY"],
 #     },
 #     {

@@ -4,6 +4,7 @@ from deploy_manager.config.settings import (
     DEFAULT_NODE_BIN,
     DEFAULT_NPM_BIN,
     DJANGO_DEFAULT_WSGI,
+    SERVICE_DIR,
     SYSTEMD_DIR,
 )
 from deploy_manager.core.exceptions import DeployError
@@ -82,8 +83,9 @@ def generate_service_unit(proj, port, entry_point, workers=2, npm_script=None, e
             extra_env["DJANGO_SETTINGS_MODULE"] = settings
 
     elif ptype == "nodeapi":
+        pkg = proj.get("pkg_cmd", DEFAULT_NPM_BIN)
         if npm_script:
-            exec_start = f"{DEFAULT_NPM_BIN} run {npm_script}"
+            exec_start = f"{pkg} run {npm_script}"
         else:
             exec_start = f"{DEFAULT_NODE_BIN} {entry_point}"
         extra_env["NODE_ENV"] = "production"
@@ -91,25 +93,61 @@ def generate_service_unit(proj, port, entry_point, workers=2, npm_script=None, e
         extra_env["NPM_CONFIG_CACHE"] = os.path.join(home_dir, ".npm")
 
     elif ptype == "nextapp":
+        pkg = proj.get("pkg_cmd", DEFAULT_NPM_BIN)
         if npm_script:
-            exec_start = f"{DEFAULT_NPM_BIN} run {npm_script}"
+            exec_start = f"{pkg} run {npm_script}"
         else:
-            exec_start = f"{DEFAULT_NPM_BIN} start"
+            exec_start = f"{pkg} start"
         extra_env["NODE_ENV"] = "production"
         extra_env["PORT"] = str(port)
         extra_env["NPM_CONFIG_CACHE"] = os.path.join(home_dir, ".npm")
 
     elif ptype == "compose":
+        app_dir = os.path.join(dest_dir, proj["app_dir"]) if proj.get("app_dir") else dest_dir
         compose_file = proj.get("compose_file", "docker-compose.yml")
-        compose_bin = "docker compose"
-        exec_start = f"{compose_bin} -f {compose_file} up -d --remove-orphans"
-        exec_stop  = f"{compose_bin} -f {compose_file} down"
-        return _build_compose_unit(desc, user, dest_dir, exec_start, exec_stop, env_file)
+        exec_start = f"docker compose -f {compose_file} up -d --remove-orphans"
+        exec_stop  = f"docker compose -f {compose_file} down"
+        return _build_compose_unit(desc, user, app_dir, exec_start, exec_stop, env_file)
 
     else:
         raise DeployError(f"Cannot generate service for type: {ptype}")
 
     return _build_unit_lines(desc, user, dest_dir, exec_start, env_file, extra_env)
+
+
+def link_service_file(proj):
+    """Symlink a .service file that lives inside /srv/<type>/<name>/ into SYSTEMD_DIR."""
+    service_name = proj.get("service", "")
+    if not service_name:
+        raise DeployError("No 'service' name configured for this project.")
+
+    src_path = os.path.join(SERVICE_DIR, service_name)
+
+    if not os.path.isfile(src_path):
+        raise DeployError(
+            f"Service file not found at {src_path}\n"
+            f"  Generate it first with option 14, or place it manually in {SERVICE_DIR}."
+        )
+
+    link_path = os.path.join(SYSTEMD_DIR, service_name)
+
+    if os.path.islink(link_path):
+        current_target = os.readlink(link_path)
+        if current_target == src_path:
+            print(f"  Already linked: {link_path} -> {src_path}")
+            return
+        print(f"  Removing existing symlink: {link_path} -> {current_target}")
+        os.remove(link_path)
+    elif os.path.isfile(link_path):
+        if not confirm(f"  {link_path} is a regular file (not a symlink). Replace with symlink?"):
+            return
+        os.remove(link_path)
+
+    os.symlink(src_path, link_path)
+    print(f"  Linked: {link_path} -> {src_path}")
+    run_cmd(["systemctl", "daemon-reload"])
+    run_cmd(["systemctl", "enable", service_name])
+    print(f"  Service {service_name} enabled.")
 
 
 def create_service_file(proj, interactive=True):
@@ -128,62 +166,62 @@ def create_service_file(proj, interactive=True):
     workers = 2
     npm_script = proj.get("npm_script")
 
-    if ptype == "compose":
-        compose_file = proj.get("compose_file", "docker-compose.yml")
-        if interactive:
-            print(f"\n  Creating systemd service: {service_name}")
-            print(f"  Type: compose | User: {proj['user']} | Dir: {dest_dir}")
-            cf_input = input(f"  Compose file [{compose_file}]: ").strip()
-            if cf_input:
-                compose_file = cf_input
-        unit_content = generate_service_unit(proj, port, entry_point, env_file=env_file)
-        service_path = os.path.join(SYSTEMD_DIR, service_name)
-        if os.path.isfile(service_path) and interactive:
-            if not confirm(f"  {service_path} exists. Overwrite?"):
-                return
-        with open(service_path, "w") as f:
-            f.write(unit_content)
-        ensure_system_user(proj["user"])
-        run_cmd(["systemctl", "daemon-reload"])
-        run_cmd(["systemctl", "enable", service_name])
-        return
-
     if interactive:
         print(f"\n  Creating systemd service: {service_name}")
         print(f"  Type: {ptype} | User: {proj['user']} | Dir: {dest_dir}")
-        port_input = input(f"  Port [{port}]: ").strip()
-        if port_input.isdigit():
-            port = int(port_input)
+
+    if ptype == "compose":
+        compose_file = proj.get("compose_file", "docker-compose.yml")
+        if interactive:
+            cf_input = input(f"  Compose file [{compose_file}]: ").strip()
+            if cf_input:
+                compose_file = cf_input
+    else:
+        if interactive:
+            port_input = input(f"  Port [{port}]: ").strip()
+            if port_input.isdigit():
+                port = int(port_input)
 
         if ptype == "fastapi":
             default_ep = entry_point or "app.main:app"
-            ep_input = input(f"  Uvicorn ASGI app [{default_ep}]: ").strip()
-            entry_point = ep_input or default_ep
+            if interactive:
+                ep_input = input(f"  Uvicorn ASGI app [{default_ep}]: ").strip()
+                entry_point = ep_input or default_ep
+            else:
+                entry_point = entry_point or default_ep
         elif ptype == "django":
             default_ep = entry_point or proj.get("wsgi_module", DJANGO_DEFAULT_WSGI)
-            ep_input = input(f"  Gunicorn WSGI module [{default_ep}]: ").strip()
-            entry_point = ep_input or default_ep
+            if interactive:
+                ep_input = input(f"  Gunicorn WSGI module [{default_ep}]: ").strip()
+                entry_point = ep_input or default_ep
+            else:
+                entry_point = entry_point or default_ep
         elif ptype in ("nodeapi", "nextapp"):
             default_ep = entry_point or "src/index.js"
-            ep_input = input(f"  Entry point [{default_ep}]: ").strip()
-            entry_point = ep_input or default_ep
-            npm_input = input(f"  Use npm script instead? (e.g. 'start') [leave empty]: ").strip()
-            if npm_input:
-                npm_script = npm_input
+            if interactive:
+                ep_input = input(f"  Entry point [{default_ep}]: ").strip()
+                entry_point = ep_input or default_ep
+                npm_input = input(f"  Use npm script instead? (e.g. 'start') [leave empty]: ").strip()
+                if npm_input:
+                    npm_script = npm_input
+            else:
+                entry_point = entry_point or default_ep
 
-        if is_python_type(proj):
+        if is_python_type(proj) and interactive:
             w_input = input(f"  Workers [{workers}]: ").strip()
             workers = int(w_input) if w_input.isdigit() else workers
 
     unit_content = generate_service_unit(proj, port, entry_point, workers, npm_script, env_file)
-    service_path = os.path.join(SYSTEMD_DIR, service_name)
 
-    if os.path.isfile(service_path) and interactive:
-        if not confirm(f"  {service_path} exists. Overwrite?"):
+    # Write to /srv/service/<name>.service (flat, no subfolders)
+    os.makedirs(SERVICE_DIR, exist_ok=True)
+    srv_service_path = os.path.join(SERVICE_DIR, service_name)
+    if os.path.isfile(srv_service_path) and interactive:
+        if not confirm(f"  {srv_service_path} exists. Overwrite?"):
             return
-
-    with open(service_path, "w") as f:
+    with open(srv_service_path, "w") as f:
         f.write(unit_content)
+    print(f"  Written: {srv_service_path}")
+
     ensure_system_user(proj["user"])
-    run_cmd(["systemctl", "daemon-reload"])
-    run_cmd(["systemctl", "enable", service_name])
+    link_service_file(proj)

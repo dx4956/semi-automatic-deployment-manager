@@ -50,16 +50,21 @@ def step_install_deps(proj):
         run_cmd([pip_bin, "install", "-r", reqs_path, "--quiet"], run_as=user)
 
     elif is_node_type(proj):
-        lock_file = os.path.join(dest_dir, "package-lock.json")
+        pkg = proj.get("pkg_cmd", "npm")
+        app_dir = os.path.join(dest_dir, proj["app_dir"]) if proj.get("app_dir") else dest_dir
         npm_env = {"NPM_CONFIG_CACHE": os.path.join(home_dir, ".npm")}
-        if os.path.isfile(lock_file):
-            run_cmd(["npm", "ci", "--omit=dev", "--ignore-scripts"], cwd=dest_dir,
-                    env=npm_env, run_as=user)
+        if pkg == "npm":
+            lock_file = os.path.join(app_dir, "package-lock.json")
+            if os.path.isfile(lock_file):
+                run_cmd(["npm", "ci", "--omit=dev", "--ignore-scripts"], cwd=app_dir,
+                        env=npm_env, run_as=user)
+            else:
+                print("No package-lock.json, falling back to npm install")
+                run_cmd(["npm", "install", "--omit=dev", "--ignore-scripts"], cwd=app_dir,
+                        env=npm_env, run_as=user)
+            run_cmd(["npm", "rebuild"], cwd=app_dir, env=npm_env, run_as=user, check=False)
         else:
-            print("No package-lock.json, falling back to npm install")
-            run_cmd(["npm", "install", "--omit=dev", "--ignore-scripts"], cwd=dest_dir,
-                    env=npm_env, run_as=user)
-        run_cmd(["npm", "rebuild"], cwd=dest_dir, env=npm_env, run_as=user, check=False)
+            run_cmd([pkg, "install"], cwd=app_dir, run_as=user)
 
     elif is_compose_type(proj):
         compose_file = proj.get("compose_file", "docker-compose.yml")
@@ -77,14 +82,15 @@ def step_build(proj):
 
     if is_compose_type(proj):
         compose_file = proj.get("compose_file", "docker-compose.yml")
-        run_cmd(["docker", "compose", "-f", compose_file, "build"], cwd=dest_dir)
+        app_dir = os.path.join(dest_dir, proj["app_dir"]) if proj.get("app_dir") else dest_dir
+        run_cmd(["docker", "compose", "-f", compose_file, "build"], cwd=app_dir)
         return
 
-    build_cmd = proj.get("build_cmd", "npm run build")
-    build_env = {}
-    if is_node_type(proj):
-        build_env["NPM_CONFIG_CACHE"] = os.path.join(f"/var/lib/{user}", ".npm")
-    run_cmd(build_cmd.split(), cwd=dest_dir, env=build_env if build_env else None, run_as=user)
+    pkg = proj.get("pkg_cmd", "npm")
+    app_dir = os.path.join(dest_dir, proj["app_dir"]) if proj.get("app_dir") else dest_dir
+    build_cmd = proj.get("build_cmd", f"{pkg} run build")
+    build_env = {"NPM_CONFIG_CACHE": os.path.join(f"/var/lib/{user}", ".npm")} if is_node_type(proj) else {}
+    run_cmd(build_cmd.split(), cwd=app_dir, env=build_env if build_env else None, run_as=user)
 
 
 def fix_ownership(proj):
