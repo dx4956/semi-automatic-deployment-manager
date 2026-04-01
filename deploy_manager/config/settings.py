@@ -67,47 +67,59 @@
 
 # --- projects ---
 # type: fastapi | django | nodeapi | nextapp | react | compose
-# python: python_reqs, wsgi_module, django_settings, run_migrate, run_collectstatic
-# node:   pkg_cmd (default "npm", set to "pnpm"/"bun"/any binary),
-#         app_dir (subdir to run pkg_cmd in, e.g. "frontend" for monorepos),
-#         npm_script, build_cmd, build_output
-# compose: compose_file, app_dir (subdir containing docker-compose.yml)
+#
+# common fields:
+#   name, type, user, service, port, domain, extra_excludes, rotate_keys
+#
+# python (fastapi/django):
+#   entry_point, python_reqs, wsgi_module, django_settings,
+#   run_migrate, run_collectstatic
+#
+# node (nodeapi/nextapp):
+#   entry_point, npm_script, build_cmd,
+#   pkg_cmd  — command to use: "npm" | "pnpm" | "bun" | any binary path (default: "npm")
+#   app_dir  — subdir inside the project to run pkg_cmd in, e.g. "apps/web" for monorepos
+#              (leave empty to run at project root)
+#
+# compose:
+#   compose_file  — filename of the compose file (default: "docker-compose.yml")
+#                   docker compose always runs from the project root (/srv/compose/<name>/)
+#   app_dir       — subdir to run pkg_cmd in for host-side builds (e.g. "apps/web")
+#                   only needed if you build on the host before docker compose
+#   pkg_cmd       — package manager for host-side install/build (e.g. "pnpm", "bun")
+#
 # PROJECTS = [
 #     {
-#         "name": "backend",
+#         "name": "my-node-api",
 #         "type": "nodeapi",
 #         "user": "nodeapi",
-#         "service": "backend.service",
+#         "service": "my-node-api.service",
 #         "entry_point": "src/index.js",
 #         "port": 4001,
-#         "domain": "backend-api.com",
-#         "extra_excludes": ["/dir"],
-#         "pkg_cmd": "npm",       # or "pnpm", "bun", "/home/ubuntu/.bun/bin/bun", etc.
-#         "app_dir": "",          # subdir to run pkg_cmd in (leave empty for project root)
-#         "rotate_keys": ["JWT_SECRET", "API_KEY"],
+#         "domain": "api.example.com",
+#         "pkg_cmd": "npm",
+#         "rotate_keys": ["JWT_SECRET"],
 #     },
 #     {
-#         "name": "chatbot",
-#         "type": "fastapi",
-#         "user": "fastapi",
-#         "service": "chatbot.service",
-#         "entry_point": "app.main:app",
-#         "port": 8001,
-#         "domain": "chatbot.com",
-#         "extra_excludes": [],
-#         "rotate_keys": ["SECRET_KEY", "OPENAI_API_KEY"],
-#     },
-#     {
-#         "name": "next",
+#         "name": "my-next-app",
 #         "type": "nextapp",
 #         "user": "nextapp",
-#         "service": "next.service",
-#         "entry_point": "npm start",
+#         "service": "my-next-app.service",
 #         "port": 3000,
-#         "domain": "next.com",
-#         "extra_excludes": [],
-#         "build_required": True,
+#         "domain": "app.example.com",
+#         "pkg_cmd": "pnpm",       # or "bun", "npm"
+#         "app_dir": "apps/web",   # omit if package.json is at project root
 #         "rotate_keys": ["NEXTAUTH_SECRET"],
+#     },
+#     {
+#         "name": "my-fastapi",
+#         "type": "fastapi",
+#         "user": "fastapi",
+#         "service": "my-fastapi.service",
+#         "entry_point": "app.main:app",
+#         "port": 8000,
+#         "domain": "api.example.com",
+#         "rotate_keys": ["SECRET_KEY"],
 #     },
 #     {
 #         "name": "my-django-app",
@@ -117,22 +129,32 @@
 #         "wsgi_module": "config.wsgi:application",
 #         "django_settings": "config.settings.production",
 #         "port": 8010,
-#         "domain": "django-app.com",
-#         "extra_excludes": ["media/"],
+#         "domain": "django.example.com",
 #         "run_migrate": True,
 #         "run_collectstatic": True,
 #         "rotate_keys": ["SECRET_KEY", "DB_PASSWORD"],
 #     },
 #     {
-#         "name": "my-react-frontend",
+#         "name": "my-react-app",
 #         "type": "react",
 #         "user": "react",
-#         "service": "",          # React has NO service — served by nginx
-#         "port": 0,              # No port — static files
-#         "domain": "app.com",
-#         "extra_excludes": [],
-#         "build_output": "dist", # or "build" for CRA
-#         "rotate_keys": [],
+#         "service": "",           # no service — nginx serves static files
+#         "port": 0,
+#         "domain": "app.example.com",
+#         "build_output": "dist",  # or "build" for CRA
+#         "pkg_cmd": "npm",
+#     },
+#     {
+#         "name": "my-stack",
+#         "type": "compose",
+#         "user": "ubuntu",        # must be in docker group
+#         "service": "my-stack.service",
+#         "compose_file": "docker-compose.yml",
+#         "port": 8080,
+#         "domain": "stack.example.com",
+#         # only set app_dir + pkg_cmd if you need host-side install/build:
+#         # "app_dir": "apps/web",
+#         # "pkg_cmd": "pnpm",
 #     },
 # ]
 

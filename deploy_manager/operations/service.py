@@ -103,11 +103,10 @@ def generate_service_unit(proj, port, entry_point, workers=2, npm_script=None, e
         extra_env["NPM_CONFIG_CACHE"] = os.path.join(home_dir, ".npm")
 
     elif ptype == "compose":
-        app_dir = os.path.join(dest_dir, proj["app_dir"]) if proj.get("app_dir") else dest_dir
         compose_file = proj.get("compose_file", "docker-compose.yml")
         exec_start = f"docker compose -f {compose_file} up -d --remove-orphans"
         exec_stop  = f"docker compose -f {compose_file} down"
-        return _build_compose_unit(desc, user, app_dir, exec_start, exec_stop, env_file)
+        return _build_compose_unit(desc, user, dest_dir, exec_start, exec_stop, env_file)
 
     else:
         raise DeployError(f"Cannot generate service for type: {ptype}")

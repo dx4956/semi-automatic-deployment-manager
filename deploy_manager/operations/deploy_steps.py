@@ -82,8 +82,7 @@ def step_build(proj):
 
     if is_compose_type(proj):
         compose_file = proj.get("compose_file", "docker-compose.yml")
-        app_dir = os.path.join(dest_dir, proj["app_dir"]) if proj.get("app_dir") else dest_dir
-        run_cmd(["docker", "compose", "-f", compose_file, "build"], cwd=app_dir)
+        run_cmd(["docker", "compose", "-f", compose_file, "build"], cwd=dest_dir)
         return
 
     pkg = proj.get("pkg_cmd", "npm")
