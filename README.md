@@ -28,7 +28,21 @@ sudo chmod +x /usr/local/bin/sadm
 
 ## Configuration
 
-All project config lives at the top of the script. Edit the `PROJECTS` list and the path constants before first use.
+### Config Files
+
+| File | Purpose |
+|---|---|
+| `deploy_manager/config/settings.py` | **Template / defaults** — committed to git, do not put real project data here |
+| `deploy_manager/config/settings.deploy` | **Your actual config** — git-ignored, overrides anything in `settings.py` |
+
+**Never edit `settings.py` directly for your server.** Copy the values you want to change into `settings.deploy` and edit that file instead. If `settings.deploy` exists, every variable defined in it overrides the corresponding default in `settings.py`. Variables not mentioned in `settings.deploy` keep their default values.
+
+Quick start:
+
+```bash
+cp deploy_manager/config/settings.bak deploy_manager/config/settings.deploy
+# then edit settings.deploy with your projects, paths, and ports
+```
 
 ### Path Constants
 
