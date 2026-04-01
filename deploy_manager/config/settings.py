@@ -136,16 +136,18 @@
 # in that file overrides the corresponding default above.
 # settings.deploy is git-ignored — it is the file you should actually edit.
 # ---------------------------------------------------------------------------
+import importlib.machinery as _ilm
 import importlib.util as _ilu
 import os as _os
 
 _deploy_cfg = _os.path.join(_os.path.dirname(__file__), "settings.deploy")
 if _os.path.isfile(_deploy_cfg):
-    _spec = _ilu.spec_from_file_location("_settings_deploy", _deploy_cfg)
+    _loader = _ilm.SourceFileLoader("_settings_deploy", _deploy_cfg)
+    _spec = _ilu.spec_from_file_location("_settings_deploy", _deploy_cfg, loader=_loader)
     _mod = _ilu.module_from_spec(_spec)
     _spec.loader.exec_module(_mod)
     for _k, _v in vars(_mod).items():
         if not _k.startswith("_"):
             globals()[_k] = _v
-    del _mod, _spec, _k, _v
-del _ilu, _os, _deploy_cfg
+    del _mod, _spec, _loader, _k, _v
+del _ilm, _ilu, _os, _deploy_cfg
