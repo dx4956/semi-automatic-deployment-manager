@@ -17,6 +17,7 @@ def run_cmd(cmd, cwd=None, capture=False, check=True, env=None, timeout=600, run
     if run_as:
         cmd = ["sudo", "-H", "-u", run_as, "--"] + cmd
     cmd_str = " ".join(cmd)
+    print(f"  >> {cmd_str}")
     merged_env = {**os.environ, **env} if env else None
     try:
         result = subprocess.run(cmd, cwd=cwd, check=False, capture_output=capture,
